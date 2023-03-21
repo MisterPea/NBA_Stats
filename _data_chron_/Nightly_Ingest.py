@@ -2,7 +2,7 @@ from typing import NamedTuple, Dict, List
 import os
 from io import StringIO
 import re
-from errno import errorcode
+from mysql.connector import errorcode
 import urllib3
 import certifi
 import pandas as pd
@@ -18,7 +18,6 @@ MYSQL_PORT = os.getenv('MYSQL_PORT')
 MYSQL_DATABASE = os.getenv('MYSQL_DATABASE')
 URL_NIGHTLY_PLAYER_TOTALS = os.getenv('URL_NIGHTLY_PLAYER_TOTALS')
 URL_CUMULATIVE_PLAYER_STATS = os.getenv('URL_CUMULATIVE_PLAYER_STATS')
-
 
 class Endpoint(NamedTuple):
     """Typing for self.endpoint"""
