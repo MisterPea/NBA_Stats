@@ -2,7 +2,6 @@ from typing import NamedTuple, Dict, List
 import os
 from io import StringIO
 import re
-from mysql.connector import errorcode
 import urllib3
 import certifi
 import pandas as pd
@@ -74,9 +73,9 @@ class NightlyIngest:
             print("\n" + "\033[0;92m" +
                   "CONNECTION POOL CREATED:", self.sql_pool, "\033[0m")
         except mysql.connector.Error as err:
-            if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+            if err.errno == mysql.connector.errorcode.ER_ACCESS_DENIED_ERROR:
                 print('Something is wrong with your username or password')
-            elif err.errno == errorcode.ER_BAD_DB_ERROR:
+            elif err.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
                 print(f'Database {config["database"]} does not exist')
             else:
                 print(err)
@@ -201,7 +200,4 @@ class NightlyIngest:
         print("\n" + "\033[1;92m" +
               "CONNECTION CLOSED" + "\033[0m")
         return self
-
-
-# NI = NightlyIngest()
-# NI.get_set_endpoint_data().close_connection()
+    

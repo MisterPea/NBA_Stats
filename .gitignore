@@ -17,3 +17,4 @@
 *.env
 *.Dockefile
 _data_chron_/Dockerfile
+_data_chron_/crontab
