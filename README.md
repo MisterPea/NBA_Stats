@@ -6,4 +6,4 @@ Some issues overcome that should be noted:
 
 * Also, when running a cron job, if there are environment variables you need, they should be provided to the cron just like: `MYSQL_HOST=mysql_svc MYSQL_PORT=3306`. Even though you may have passed them into the container, there not available in cron.
 
-
+* We're building/running the nightly cron container like: `docker build -t nightly_cron .` and `docker run --name nightly_cron --network mysql__nba-net -it -d nightly_cron`
