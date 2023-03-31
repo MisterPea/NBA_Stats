@@ -21,11 +21,11 @@ Some issues overcome that should be noted:
 
 ### Formulae
 ---
-Effective field goal percentage: $$FG + 0.5 * threeFG \over FGA $$
+#### Effective field goal percentage: $FG + 0.5 * threeFG \over FGA$
 
 ---
 
-### Possessions:
-$$0.5 * ((Tm FGA + 0.4 * Tm FTA - 1.07 * \Biggl({Tm ORB \over Tm ORB + Opp DRB}\Biggr) * (Tm FGA - Tm FG) + Tm TOV)$$
-$$ + (Opp FGA + 0.4 * Opp FTA - 1.07 * \Biggl({Opp ORB \over Opp ORB + Tm DRB}\Biggr) * (Opp FGA - Opp FG) + Opp TOV))$$
+#### Possessions: $0.5 * ((Tm FGA + 0.4 * Tm FTA - 1.07 * \Bigl({Tm ORB \over Tm ORB + Opp DRB}\Bigr) * (Tm FGA - Tm FG) + Tm TOV)$
+$+ (Opp FGA + 0.4 * Opp FTA - 1.07 * \Bigl({Opp ORB \over Opp ORB + Tm DRB}\Bigr) * (Opp FGA - Opp FG) + Opp TOV))$
+
 ---
