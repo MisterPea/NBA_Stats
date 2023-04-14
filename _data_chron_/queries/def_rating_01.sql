@@ -42,7 +42,6 @@ CREATE TEMPORARY TABLE IF NOT EXISTS team_data AS (
     t.team,
     t.opponent
 );
-
 CREATE TEMPORARY TABLE IF NOT EXISTS player_data AS (
   SELECT p.id,
     p.date,
@@ -64,8 +63,6 @@ CREATE TEMPORARY TABLE IF NOT EXISTS player_data AS (
     p.steals,
     p.blocks
 );
-
--- Returns STOPs
 CREATE TEMPORARY TABLE IF NOT EXISTS def_1 AS (
   WITH cte_one AS (
     SELECT d.id,
@@ -133,23 +130,19 @@ CREATE TEMPORARY TABLE IF NOT EXISTS def_1 AS (
     FROM nightly_player_totals d
     JOIN cte_three ON d.id = cte_three.id
   )
-
 SELECT m.id,
-  m.date,
+  DATE_FORMAT(m.date, '%Y-%m-%d') AS date,
   m.team,
   m.opponent,
   m.player_name,
   cte_four.stops,
   cte_four.stop_pct,
-  cte_four.Team_Defensive_Rating,
-  cte_four.D_Pts_per_ScPoss,
-  (cte_four.Team_Defensive_Rating + 0.2 * (100 * cte_four.D_Pts_per_ScPoss * (1 - cte_four.stop_pct) - cte_four.Team_Defensive_Rating)) AS DRtg
+  ROUND(CAST((cte_four.Team_Defensive_Rating) AS FLOAT),2) AS team_def_rating,
+  (cte_four.Team_Defensive_Rating + 0.2 * (100 * cte_four.D_Pts_per_ScPoss * (1 - cte_four.stop_pct) - cte_four.Team_Defensive_Rating)) AS def_rating
   FROM nightly_player_totals m
   JOIN cte_four ON m.id = cte_four.id
 );
-
-
+-- INSERT IGNORE INTO adv_stats_player (id, date, team, opponent, player_name,
+--   stops, stops_pct, team_def_rating, def_rating)
 SELECT *
-FROM def_1
-ORDER BY date, team
-
+  FROM def_1

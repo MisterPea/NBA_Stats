@@ -184,28 +184,19 @@ cte_four AS (
 ),
 fin AS (
   SELECT m.id,
-    m.date,
-    m.player_name,
-    m.team,
-    m.opponent,
     cte_four.usage_rate,
     cte_four.game_score,
     COALESCE( cte_four.eff_fg_pct,0) AS eff_fg_pct,
-    COALESCE((100 * (cte_four.PProd / cte_four.TotPoss)),0) AS ORtg -- offensive rating
+    COALESCE((100 * (cte_four.PProd / cte_four.TotPoss)),0) AS off_rtg -- offensive rating
   FROM nightly_player_totals m
   JOIN cte_four ON m.id = cte_four.id
 )
 SELECT id,
-  date,
-  team,
-  opponent,
-  player_name,
-  game_score,
-  usage_rate,
-  eff_fg_pct,
-  ORtg
+  ROUND(CAST(game_score AS FLOAT),2) AS game_score,
+  ROUND(CAST(usage_rate AS FLOAT),2) AS usage_rate,
+  ROUND(CAST(eff_fg_pct AS FLOAT),2) AS eff_fg_pct,
+  ROUND(CAST(off_rtg AS FLOAT),2) AS off_rating
 FROM fin
-ORDER BY date, team
 
 
 
