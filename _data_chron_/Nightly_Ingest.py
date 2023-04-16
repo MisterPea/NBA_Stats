@@ -1,12 +1,12 @@
 from typing import NamedTuple, Dict, List
 import os
-from io import StringIO
 import re
 import urllib3
 import certifi
-import pandas as pd
 import mysql.connector
 from dotenv import load_dotenv
+from Nighty_Ingest_Playoffs import NightlyIngestPlayoffs
+from Nighty_Ingest_Regular_Season import NightlyIngestRegularSeason
 
 load_dotenv()
 
@@ -25,34 +25,20 @@ class Endpoint(NamedTuple):
     table_name: str
     column_widths: List[int]
 
-
 class NightlyIngest:
     """Methods to deal with the ingesting of nightly stats: usually released around 1am"""
 
     def __init__(self) -> None:
+        self.starting_num_records = 0
+        self.ending_num_records = 0
         self.sql_pool = None
         self.create_connection_pool()
         self.endpoints = [
             {'url': URL_NIGHTLY_PLAYER_TOTALS,
-             'columns': ['date', 'team', 'opponent', 'player_name', 'position',
-                         'games_played', 'minutes_played', 'field_goals',
-                         'field_goal_attempts', 'three_point_field_goals',
-                         'three_point_field_goal_attempts', 'free_throws',
-                         'free_throw_attempts', 'offensive_rebounds', 'defensive_rebounds',
-                         'total_rebounds', 'assists', 'personal_fouls', 'disqualifications',
-                         'steals', 'turnovers', 'blocks', 'points_scored'],
-             'table_name': 'nightly_player_totals',
-             'column_widths': [11, 4, 4, 25, 7, 2, 5, 3, 4, 4, 5,
-                               3, 4, 4, 4, 4, 5, 4, 3, 5, 3, 4, 4],
+             'table_name': 'nightly_player_totals'
              },
             {'url': URL_CUMULATIVE_PLAYER_STATS,
-             'columns': ["SCOPE", "TEAM", "RS", "NAME_TEAM", "GAMES_PLAYED", "GAMES_STARTED",
-                         "TOT_MIN", "FG", "FGA", "FG_PCT", "FG3", "FG3A", "FG3_PCT",
-                         "FT", "FTA", "FT_PCT", "OFF_REB", "DEF_REB", "TOT_REB", "AST",
-                         "PF", "DQ", "ST", "TR_OVR", "BLKS", "TOT_PTS", "PPG", "HIGH"],
-             'table_name': 'cumulative_player_stats',
-             'column_widths': [6, 4, 4, 38, 3, 3, 6, 5, 6, 6, 5, 5, 6,
-                               5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 3]
+             'table_name': 'cumulative_player_stats'
              }
         ]
 
@@ -65,7 +51,7 @@ class NightlyIngest:
             'database': MYSQL_DATABASE,
             'password': MYSQL_PASSWORD,
             'pool_name': 'player_stats_connection_pool',
-            'pool_size': 5
+            'pool_size': 10
         }
         try:
             self.sql_pool = mysql.connector.pooling.MySQLConnectionPool(
@@ -102,96 +88,47 @@ class NightlyIngest:
             self.process_data_for_sql(content, self.endpoints[0])
         return self
 
-    def process_data_for_sql(self, content: str, endpoint_data: Endpoint):
-        """Method that processed the data, for SQL inclusion"""
+    def get_record_count(self, table_name: str) -> int:
+        """Method to get the current number of records in the nightly player table"""
         connection = self.sql_pool.get_connection()
         cursor = connection.cursor()
-        columns = endpoint_data['columns']
-        pages = content.split('\n\n\n\n')
-        regex_pattern = r'INCLUDES GAMES OF .*|\n\n+'
+        query = f"SELECT COUNT(*) FROM {table_name}"
+        cursor.execute(query)
+        return int(cursor.fetchone()[0])
 
-        for page in pages:
-            # If page is empty
-            if not page.strip():
-                continue
-            # Remove the INCLUDED GAMES... heading
-            page = re.sub(regex_pattern, '', page)
+    def process_data_for_sql(self, content: str, endpoint_data: Endpoint):
+        """Method that processed the data, for SQL inclusion"""
+        self.starting_num_records = self.get_record_count(endpoint_data['table_name'])
+        connection = self.sql_pool.get_connection()
+        cursor = connection.cursor()
+        playoff_regex_pattern = r'PLAYOFFS / INCLUDES GAMES OF .*|\n\n+'
 
-            # To pass it into pandas fixed width, we need to convert to memory buffer
-            data_buffer = StringIO(page)
-            # Read data as fixed width based on column widths
-
-            data_frame = pd.read_fwf(
-                data_buffer,
-                widths=endpoint_data['column_widths'],
-                skiprows=1,
-                names=columns)
-
-            if endpoint_data['table_name'] == 'nightly_player_totals':
-                data_frame['date'] = pd.to_datetime(
-                    data_frame['date'], format='%m/%d/%Y').dt.strftime('%Y-%m-%d')
-
-            # # Convert DataFrame to Dict
-            data_dict = data_frame.to_dict(orient='records')
-
-            for row in data_dict:
-
-                # For table_name, the name is intertwined with the name.
-                # A future improvement could be to break out the team[s] into another column.
-                if endpoint_data['table_name'] == 'cumulative_player_stats':
-                    name_list = row['NAME_TEAM'].split(',')
-                    first_and_end = name_list[1].strip().split(' ')
-                    name_joined = ''
-                    if len(first_and_end) == 2:
-                        name_joined = f"{first_and_end[0]} {name_list[0]} {first_and_end[1]}"
-                    else:
-                        name_joined = f"{name_list[1].strip()} {name_list[0]}"
-                    query = f'SELECT id FROM active_players WHERE full_name="{name_joined}" AND is_active=1'
-                    cursor.execute(query)
-                    player_id = cursor.fetchall()
-                    if len(player_id) == 0:
-                        query = f'SELECT id FROM active_players WHERE first_name="{first_and_end[0]}" AND last_name="{name_list[0]}" AND is_active=1'
-                        cursor.execute(query)
-                        player_id = cursor.fetchall()
-
-                    # tuple in array
-                    row['PLAYER_ID'] = player_id[0][0]
-
-                # For nightly player totals
-                elif endpoint_data['table_name'] == 'nightly_player_totals':
-                    # We derive a id from date and player name so it's unique
-                    split_name = row['player_name'].split(',')
-                    _first = split_name[1].split()[0]
-                    _last = split_name[0].split()[0]
-                    query = f'SELECT id FROM active_players WHERE first_name="{_first}" AND last_name="{_last}" AND is_active=1'
-                    cursor.execute(query)
-
-                    player_id = cursor.fetchall()
-                    # Check for empty ids
-                    # print(player_id,_first,_last)
-                    if len(player_id):
-                        player_id = player_id[0][0]
-                    else:
-                        player_id = -1
-                        print('MISSING_KEY')
-                    _id = row['date'].replace('-', '') + str(player_id)
-                    row['id'] = _id
-
-                keys = ', '.join(row.keys())
-                values = tuple(row.values())
-                if endpoint_data['table_name'] == 'cumulative_player_stats':
-                    query = f"REPLACE INTO {endpoint_data['table_name']} ({keys}) VALUES {values}"
+        # Cumulative Stats - Broken out between regular season and playoffs
+        if endpoint_data['table_name'] == 'cumulative_player_stats':
+            pages = content.split('\n\n\n\n')
+            for page in pages:
+                if not page.strip():
+                    continue
+                if re.match(playoff_regex_pattern, page):
+                    page = re.sub(playoff_regex_pattern, '', page)
+                    NightlyIngestPlayoffs().cumulative(page)
                 else:
-                    query = f"INSERT IGNORE INTO {endpoint_data['table_name']} ({keys}) VALUES {values}"
-                # Insertion in DB
-                try:
-                    cursor.execute(query)
-                except (TimeoutError, ConnectionError, TypeError) as err:
-                    print("\033[0;91m" +
-                          'There has been an ERROR:', err + "\033[0m")
-
-        connection.commit()
-        return self
+                    cursor.execute('TRUNCATE TABLE cumulative_player_stats')
+                    connection.commit()
+                    page = re.sub(r'\n\n', '', page)
+                    NightlyIngestRegularSeason().cumulative(page)
+        else:
+            # if we're nightly stats
+            pages = content.split('\n\n\n\n')
+            for page in pages:
+                if not page.strip():
+                    continue
+                if re.match(playoff_regex_pattern, page):
+                    page = re.sub(playoff_regex_pattern, '', page)
+                    NightlyIngestPlayoffs().nightly(page)
+                else:
+                    page = re.sub(r'\n\n', '', page)
+                    NightlyIngestRegularSeason().nightly(page)
 
     def close_connection(self):
         """Method to close database connection"""
@@ -200,4 +137,3 @@ class NightlyIngest:
         print("\n" + "\033[1;92m" +
               "CONNECTION CLOSED" + "\033[0m")
         return self
-    
