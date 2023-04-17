@@ -106,6 +106,7 @@ class NightlyIngest:
         # Cumulative Stats - Broken out between regular season and playoffs
         if endpoint_data['table_name'] == 'cumulative_player_stats':
             pages = content.split('\n\n\n\n')
+            cursor.execute('TRUNCATE TABLE cumulative_player_stats')
             for page in pages:
                 if not page.strip():
                     continue
@@ -113,7 +114,6 @@ class NightlyIngest:
                     page = re.sub(playoff_regex_pattern, '', page)
                     NightlyIngestPlayoffs().cumulative(page)
                 else:
-                    cursor.execute('TRUNCATE TABLE cumulative_player_stats')
                     connection.commit()
                     page = re.sub(r'\n\n', '', page)
                     NightlyIngestRegularSeason().cumulative(page)
